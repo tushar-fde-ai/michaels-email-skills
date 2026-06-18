@@ -1,5 +1,4 @@
 ---
-name: michaels-email-dashboard
 description: Renders the HTML dashboard for Michaels email campaign performance reports. Called by michaels-email-skill once all query data is collected. Produces a single self-contained HTML file with 5 tabs.
 ---
 

@@ -1,0 +1,8 @@
+{
+  "name": "michaels-email-skill",
+  "description": "Analyze email campaigns from Michaels Treasure Data instance",
+  "version": "1.0.0",
+  "author": {
+    "name": "tushar-fde-ai"
+  }
+}

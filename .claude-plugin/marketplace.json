@@ -1,0 +1,21 @@
+{
+  "name": "michaels-email-skills",
+  "owner": {
+    "name": "tushar-fde-ai"
+  },
+  "description": "Michaels email campaign analysis and dashboard skills for Treasure AI Studio",
+  "plugins": [
+    {
+      "name": "michaels-email-skill",
+      "source": "./plugins/michaels-email-skill",
+      "description": "Analyze email campaigns from Michaels Treasure Data instance",
+      "version": "1.0.0"
+    },
+    {
+      "name": "michaels-email-dashboard",
+      "source": "./plugins/michaels-email-dashboard",
+      "description": "Render the HTML dashboard for Michaels email campaign performance reports",
+      "version": "1.0.0"
+    }
+  ]
+}

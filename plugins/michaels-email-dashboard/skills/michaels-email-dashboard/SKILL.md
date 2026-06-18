@@ -18,7 +18,9 @@ Single self-contained HTML file. 5 tabs. All CSS inline. No external dependencie
 ## Banner
 Campaign name (monospace badge) · Send date · Attribution window · Theme · Type
 
-## Tabs: Overview · Departments · RFM Segments · Baseline · Geography
+## Tabs: Overview · Departments · Baseline · Geography (default) · RFM Segments (optional, on request)
+
+> **Default:** Render 4 tabs. The RFM Segments tab is only added if the user opts in after the initial dashboard is rendered.
 
 ---
 
@@ -56,7 +58,7 @@ Campaign name (monospace badge) · Send date · Attribution window · Theme · T
 
 ---
 
-## Tab 3: RFM Segments
+## Tab 3: RFM Segments *(optional — only if user opts in)*
 
 **Bridge badge:** RFM revenue vs clicker total (should be within ~1%)
 

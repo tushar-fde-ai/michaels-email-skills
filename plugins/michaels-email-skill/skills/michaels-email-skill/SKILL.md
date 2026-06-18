@@ -503,6 +503,33 @@ ORDER BY revenue DESC;
 
 ---
 
+## Execution Flow
+
+### Default run (fast — ~30-60 min total):
+1. Phase 1: Engagement + Baseline (instant, from agg table)
+2. §5+6: Transactions + Departments
+3. §8a: Fiscal IDs (instant)
+4. §10a: Channel split
+5. §10b+c: In-Store markets
+6. §10d: Online states
+7. §10e: BOPIS markets
+
+Render the dashboard with 4 tabs: **Overview · Departments · Baseline · Geography** (no RFM tab).
+
+### After dashboard is rendered, ask the user:
+
+> "Would you like to add the **RFM Segments** tab? This adds segment-level performance breakdowns (Core/Aspiring/Developing/Uncommitted/Reactivated), lifecycle classification, and a cross-tab showing where reactivated customers land. It requires 4 additional heavy queries against the transaction history table and typically takes **30-60 minutes** to complete. Want me to run it?"
+
+### If user says yes — run RFM queries:
+1. §7: RFM segment attribution
+2. §7b: RFM × Lifecycle cross-tab (uses fiscal IDs from §8a)
+3. §8b: Clicker identity diagnostic (uses fiscal IDs from §8a)
+4. §9: Clicker lifecycle classification
+
+Then re-render the dashboard with all 5 tabs: **Overview · Departments · RFM Segments · Baseline · Geography**
+
+---
+
 ## Dashboard Rendering
 
 Once all query data is collected, invoke the **`michaels-email-dashboard`** skill to render the HTML output. That skill defines the complete 5-tab dashboard structure, CSS classes, formatting rules, and layout specifications.

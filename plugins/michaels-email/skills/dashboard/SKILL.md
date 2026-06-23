@@ -1,3 +1,7 @@
+---
+description: Renders the HTML dashboard for Michaels email campaign performance reports
+---
+
 
 # Email Campaign Dashboard — Layout Spec
 

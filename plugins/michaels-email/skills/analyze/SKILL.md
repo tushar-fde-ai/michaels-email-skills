@@ -1,3 +1,7 @@
+---
+description: Use this skill when asked to analyze email campaigns from Michaels treasure data instance
+---
+
 
 # Email Performance Analysis Rules
 

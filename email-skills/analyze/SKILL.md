@@ -1,4 +1,5 @@
 ---
+name: michaels-email-analyze
 description: Use this skill when asked to analyze email campaigns from Michaels treasure data instance
 ---
 

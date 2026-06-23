@@ -6,9 +6,15 @@
   "description": "Michaels email campaign analysis and dashboard skills for Treasure AI Studio",
   "plugins": [
     {
-      "name": "michaels-email",
-      "source": "./plugins/michaels-email",
-      "description": "Analyze Michaels email campaigns and render performance dashboards",
+      "name": "michaels-email-analyze",
+      "source": "./plugins/michaels-email-analyze",
+      "description": "Analyze Michaels email campaigns from Treasure Data",
+      "version": "1.0.0"
+    },
+    {
+      "name": "michaels-email-dashboard",
+      "source": "./plugins/michaels-email-dashboard",
+      "description": "Render the HTML dashboard for Michaels email campaign performance reports",
       "version": "1.0.0"
     }
   ]

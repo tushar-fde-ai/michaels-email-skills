@@ -1,0 +1,8 @@
+{
+  "name": "michaels-email-dashboard",
+  "description": "Render the HTML dashboard for Michaels email campaign performance reports",
+  "version": "1.0.0",
+  "author": {
+    "name": "tushar-fde-ai"
+  }
+}

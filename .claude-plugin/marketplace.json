@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "name": "michaels-email-skills",
+      "name": "email",
       "description": "Analyze Michaels email campaigns and render performance dashboards. Trigger on: Michaels email, email campaign analysis, email performance, campaign report.",
       "source": "./",
       "strict": false,

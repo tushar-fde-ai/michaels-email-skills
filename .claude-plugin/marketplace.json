@@ -14,8 +14,8 @@
       "source": "./",
       "strict": false,
       "skills": [
-        "./email-skills/analyze",
-        "./email-skills/dashboard"
+        "./email/analyze",
+        "./email/dashboard"
       ]
     }
   ]

@@ -1,5 +1,5 @@
 ---
-name: michaels-email-dashboard
+name: dashboard
 description: Renders the HTML dashboard for Michaels email campaign performance reports
 ---
 

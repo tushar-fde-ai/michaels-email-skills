@@ -1,0 +1,8 @@
+{
+  "name": "email",
+  "description": "Michaels email campaign analysis and dashboard rendering",
+  "version": "1.0.0",
+  "author": {
+    "name": "tushar-fde-ai"
+  }
+}

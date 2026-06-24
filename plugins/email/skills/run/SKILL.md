@@ -580,4 +580,4 @@ Then re-render the dashboard with all 5 tabs: **Overview · Departments · RFM S
 
 ## Dashboard Rendering
 
-Once all query data is collected, invoke the **`michaels-email-dashboard`** skill to render the HTML output. That skill defines the complete 5-tab dashboard structure, CSS classes, formatting rules, and layout specifications.
+Once all query data is collected, invoke the **`email:dashboard`** skill to render the HTML output. That skill defines the complete 5-tab dashboard structure, CSS classes, formatting rules, and layout specifications.

@@ -1,5 +1,5 @@
 ---
-name: analytics
+name: run
 description: Use when analyzing Michaels retail customer data, transaction metrics, segmentation (New/Existing/Reactivated customers), YoY waterfall analysis, department performance, income/demographic analysis, campaign calendar lookups, campaign SKU analysis, or any query against cdp_unification_mk or mk_src databases. Triggers on: "analyze customers", "customer trends", "YoY analysis", "waterfall", "department growth", "income analysis", "basket analysis", "Jonathan Adler", "Maker Haul", "Mothers Day", "campaign analysis", "campaign SKUs", "fiscal quarter", "campaign dates", "new vs existing customers", "AOV", "TPC", "AUR", "UPT", "segmentation", "loyalty", "crafter", or any Michaels retail analytics request.
 ---
 

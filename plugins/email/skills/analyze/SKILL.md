@@ -10,6 +10,53 @@ These instructions define how to generate optimized SQL queries for the Email Pe
 
 ---
 
+## Step 0: Campaign Discovery (run FIRST if no campaign name provided)
+
+If the user has not specified a campaign name, run this query to show available campaigns grouped by type:
+
+```sql
+SELECT
+    CASE
+        WHEN emailname_ LIKE '%\_story\_%' ESCAPE '\' THEN 'Brand Story'
+        WHEN emailname_ LIKE '%\_dce\_%' ESCAPE '\' THEN 'DCE'
+        WHEN emailname_ LIKE '%customframe%' THEN 'Custom Frame'
+        WHEN emailname_ LIKE '%\_promo\_%' ESCAPE '\'
+          OR emailname_ LIKE '%\_wknd\_%' ESCAPE '\'
+          OR emailname_ LIKE '%\_circular\_%' ESCAPE '\'
+          OR emailname_ LIKE '%\_eow\_%' ESCAPE '\'
+          OR emailname_ LIKE '%\_otherpromo\_%' ESCAPE '\' THEN 'Promo'
+        ELSE 'Other'
+    END AS campaign_type,
+    COUNT(*) AS campaign_count,
+    MAX(send_dt) AS most_recent
+FROM mk_stg.email_conversion_agg
+GROUP BY 1
+ORDER BY most_recent DESC;
+```
+
+Then ask the user:
+> "I found the following campaign types in your account. Which type would you like to analyze?
+> - **Promo** (X campaigns, most recent: YYYY-MM-DD)
+> - **Brand Story** (X campaigns, most recent: YYYY-MM-DD)
+> - **DCE** (X campaigns, most recent: YYYY-MM-DD)
+> - **Custom Frame** (X campaigns, most recent: YYYY-MM-DD)
+
+Once they pick a type, run this to show the most recent campaigns of that type:
+
+```sql
+SELECT emailname_, send_dt, sends, ROUND(sales, 2) AS revenue
+FROM mk_stg.email_conversion_agg
+WHERE {TYPE_PEER_CONDITION}
+ORDER BY send_dt DESC
+LIMIT 10;
+```
+
+Present the list and ask: **"Which campaign would you like to analyze?"**
+
+Once the user confirms a campaign name, proceed with the full analysis below.
+
+---
+
 ## General Context
 * **Database Schema:** All tables are located in the `mk_stg` schema.
 * **Campaign Parameter:** Provided by user. Substitute where `{input_campaign}` appears — matched against the `emailname_` column.

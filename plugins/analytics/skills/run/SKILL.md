@@ -287,3 +287,4 @@ Single-column vertical stack:
 5. Customer Segmentation Breakdown (one chart)
 6. Waterfall Flow Chart (if applicable)
 7. Detailed Metrics Table
+

@@ -1,14 +1,20 @@
 {
-  "name": "michaels-email-skills",
+  "name": "michaels-skills",
   "owner": {
     "name": "tushar-fde-ai"
   },
-  "description": "Michaels email campaign analysis and dashboard skills for Treasure AI Studio",
+  "description": "Michaels email and retail analytics skills for Treasure AI Studio",
   "plugins": [
     {
       "name": "email",
       "source": "./plugins/email",
       "description": "Analyze Michaels email campaigns and render performance dashboards",
+      "version": "1.0.0"
+    },
+    {
+      "name": "analytics",
+      "source": "./plugins/analytics",
+      "description": "Michaels retail analytics — customer segmentation, YoY waterfall, department performance, demographics",
       "version": "1.0.0"
     }
   ]

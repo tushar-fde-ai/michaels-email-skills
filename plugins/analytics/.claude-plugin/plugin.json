@@ -1,0 +1,8 @@
+{
+  "name": "analytics",
+  "description": "Michaels retail analytics — customer segmentation, YoY waterfall, department performance, demographics",
+  "version": "1.0.0",
+  "author": {
+    "name": "tushar-fde-ai"
+  }
+}

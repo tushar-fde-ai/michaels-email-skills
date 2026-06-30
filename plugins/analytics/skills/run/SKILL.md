@@ -5,6 +5,34 @@ description: Use when analyzing Michaels retail customer data, transaction metri
 
 # Michaels Analytics Agent
 
+## Step 0: What would you like to analyze?
+
+**When this skill is invoked, always present this menu first:**
+
+> "Here's what I can help you analyze for Michaels. Which would you like to run?
+>
+> **1. Customer KPIs**
+> Segment customers into New, Existing, and Reactivated. Calculate key metrics: Total Customers, AOV, TPC (Trips per Customer), Sales per Customer, and % breakdown by segment. Can be run for any time period, fiscal quarter, or campaign event.
+>
+> **2. Waterfall Sales Growth**
+> Year-over-year growth driver decomposition. Breaks down total sales change into: New/Reactivated effect, Existing Customer Count effect, Average Spend effect, Trip Frequency (TPC), AOV, AUR, and UPT at 4 levels. Requires two time periods to compare.
+>
+> **3. Demographic Analysis**
+> Analyze sales distribution by Income, Age, Gender, or Kids_Flag using extrapolation to account for NULLs. Answers questions like: which income bracket drives the most revenue? How does spend differ by age group?
+>
+> **4. Basket Analysis**
+> For any department, analyze what other departments customers buy alongside it. Produces:
+> - Donut chart: transaction attach rate (dept-only vs. transactions with attached departments)
+> - Donut chart: AOV split between the target dept and attached departments
+> - Horizontal bar chart: top 10 attached classes by % of transactions
+>
+> **5. Campaign Analysis**
+> Analyze performance for brand campaigns (Jonathan Adler, Maker Haul, Mothers Day, etc.). Uses campaign SKU lists to measure revenue, customer segments, and YoY comparison specifically for campaign-related transactions.
+>
+> Just tell me which analysis you'd like and I'll ask for any details I need (time period, department, campaign name, etc.)."
+
+---
+
 ## Role & Objective
 Expert retail analysis agent for Michaels. Enforce strict business definitions for "New," "Existing," and "Reactivated" customers. **CRITICAL: "New" ALWAYS means new to Michaels overall. NEVER define "New" as new to a specific brand, department, or campaign.**
 
@@ -248,6 +276,93 @@ NEVER join `bq_date_dim` to the transactions table. Pre-query fiscal IDs, then i
 - NEVER calculate all metrics in a single SQL statement
 - NEVER combine New, Existing, and Reactivated in one query
 - For large date ranges (> 3 months): prefer `APPROX_DISTINCT()` over `COUNT(DISTINCT)`
+
+---
+
+## Basket Analysis
+
+When user selects Basket Analysis, ask: **"Which department would you like to analyze?"**
+
+Then run these queries for the specified department and time period:
+
+**Q1 — Attach Rate (transactions with vs without other depts):**
+```sql
+WITH dept_txns AS (
+    SELECT DISTINCT t.transaction_id_number
+    FROM cdp_unification_mk.enrich_transactions_behaviour t
+    INNER JOIN cdp_unification_mk.product_info_ai p ON t.sku_key = p.sku_key
+    WHERE CAST(t.DAY_IDNT AS BIGINT) BETWEEN {MIN_ID} AND {MAX_ID}
+      AND t.store_number NOT IN ('9283', '9284')
+      AND LOWER(p.dept_desc) = LOWER('{dept_name}')
+),
+attached_txns AS (
+    SELECT DISTINCT t.transaction_id_number
+    FROM cdp_unification_mk.enrich_transactions_behaviour t
+    INNER JOIN cdp_unification_mk.product_info_ai p ON t.sku_key = p.sku_key
+    INNER JOIN dept_txns d ON t.transaction_id_number = d.transaction_id_number
+    WHERE CAST(t.DAY_IDNT AS BIGINT) BETWEEN {MIN_ID} AND {MAX_ID}
+      AND t.store_number NOT IN ('9283', '9284')
+      AND LOWER(p.dept_desc) != LOWER('{dept_name}')
+)
+SELECT
+    COUNT(DISTINCT d.transaction_id_number) AS total_dept_txns,
+    COUNT(DISTINCT a.transaction_id_number) AS txns_with_attach,
+    COUNT(DISTINCT d.transaction_id_number) - COUNT(DISTINCT a.transaction_id_number) AS dept_only_txns
+FROM dept_txns d
+LEFT JOIN attached_txns a ON d.transaction_id_number = a.transaction_id_number;
+```
+
+**Q2 — AOV Split (dept sales vs attached dept sales in same basket):**
+```sql
+WITH dept_txns AS (
+    SELECT DISTINCT t.transaction_id_number
+    FROM cdp_unification_mk.enrich_transactions_behaviour t
+    INNER JOIN cdp_unification_mk.product_info_ai p ON t.sku_key = p.sku_key
+    WHERE CAST(t.DAY_IDNT AS BIGINT) BETWEEN {MIN_ID} AND {MAX_ID}
+      AND t.store_number NOT IN ('9283', '9284')
+      AND LOWER(p.dept_desc) = LOWER('{dept_name}')
+)
+SELECT
+    LOWER(p.dept_desc) = LOWER('{dept_name}') AS is_target_dept,
+    SUM(t.total_gross_sales) AS sales,
+    COUNT(DISTINCT t.transaction_id_number) AS txns
+FROM cdp_unification_mk.enrich_transactions_behaviour t
+INNER JOIN cdp_unification_mk.product_info_ai p ON t.sku_key = p.sku_key
+INNER JOIN dept_txns d ON t.transaction_id_number = d.transaction_id_number
+WHERE CAST(t.DAY_IDNT AS BIGINT) BETWEEN {MIN_ID} AND {MAX_ID}
+  AND t.store_number NOT IN ('9283', '9284')
+GROUP BY 1;
+```
+
+**Q3 — Top 10 Attached Classes by % of Transactions:**
+```sql
+WITH dept_txns AS (
+    SELECT DISTINCT t.transaction_id_number
+    FROM cdp_unification_mk.enrich_transactions_behaviour t
+    INNER JOIN cdp_unification_mk.product_info_ai p ON t.sku_key = p.sku_key
+    WHERE CAST(t.DAY_IDNT AS BIGINT) BETWEEN {MIN_ID} AND {MAX_ID}
+      AND t.store_number NOT IN ('9283', '9284')
+      AND LOWER(p.dept_desc) = LOWER('{dept_name}')
+)
+SELECT
+    p.dept_desc AS attached_dept,
+    COUNT(DISTINCT t.transaction_id_number) AS attach_txns,
+    ROUND(100.0 * COUNT(DISTINCT t.transaction_id_number) / (SELECT COUNT(*) FROM dept_txns), 2) AS pct_of_txns
+FROM cdp_unification_mk.enrich_transactions_behaviour t
+INNER JOIN cdp_unification_mk.product_info_ai p ON t.sku_key = p.sku_key
+INNER JOIN dept_txns d ON t.transaction_id_number = d.transaction_id_number
+WHERE CAST(t.DAY_IDNT AS BIGINT) BETWEEN {MIN_ID} AND {MAX_ID}
+  AND t.store_number NOT IN ('9283', '9284')
+  AND LOWER(p.dept_desc) != LOWER('{dept_name}')
+GROUP BY 1
+ORDER BY attach_txns DESC
+LIMIT 10;
+```
+
+**Visualizations (3 charts):**
+1. **Donut — Attach Rate:** Dept-only transactions vs transactions with other depts
+2. **Donut — AOV Split:** Target dept sales share vs attached dept sales share within same baskets
+3. **Horizontal Bar — Top 10 Attached Depts:** % of transactions that included each attached dept
 
 ---
 

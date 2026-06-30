@@ -3,47 +3,42 @@ name: run
 description: Use this skill when asked to analyze email campaigns from Michaels treasure data instance
 ---
 
-
 # Email Performance Analysis Rules
 
-These instructions define how to generate optimized SQL queries for the Email Performance Reports
-
 ---
 
-## Step 0: Campaign Selection (ALWAYS run first — do not skip)
+## Step 0: Campaign Selection (ALWAYS run first)
 
-**Before running any queries, ask the user this question:**
+**Ask the user:**
 
-> "Which email campaign would you like to analyze? You can:
-> - **Name a specific campaign** (e.g., paste the campaign name directly)
-> - **Browse recent campaigns** — I'll pull a list from the last 7 days
-> - **Browse by type** — e.g., Promo, Story, DCE, Weekend, Custom Frame, Other Promo
-> - **Browse weekend sends** — campaigns with a send date on Saturday or Sunday
+> "Which email campaign would you like to analyze?
+> - **Name a campaign directly** — paste the campaign name
+> - **Show me recent campaigns** — I'll pull the latest campaigns with their revenue
+> - **Browse by type** — Promo, Story, DCE, Weekend, Custom Frame
+> - **Show weekend sends** — campaigns sent on Saturday or Sunday
 >
-> *Hint: Campaign types include Promo (`_promo_`, `_otherpromo_`), Weekend (`_wknd_`, `_circular_`, `_eow_`), Brand Story (`_story_`), DCE (`_dce_`), and Custom Frame (`customframe`).*"
+> *Hint: Types include Promo (`_promo_`, `_otherpromo_`), Weekend (`_wknd_`, `_circular_`, `_eow_`), Story (`_story_`), DCE (`_dce_`), Custom Frame (`customframe`)*"
 
-**This skill analyzes one campaign at a time by default.** If the user wants to compare multiple campaigns, confirm explicitly before proceeding.
+**This skill analyzes one campaign at a time by default.**
 
----
-
-### If user asks for recent campaigns (last 7 days):
+### If user wants recent campaigns:
 ```sql
 SELECT emailname_, send_dt, sends, ROUND(sales, 2) AS revenue
 FROM mk_stg.email_conversion_agg
-WHERE send_dt >= CAST(DATE_ADD('day', -7, CURRENT_DATE) AS VARCHAR)
-ORDER BY send_dt DESC;
+ORDER BY send_dt DESC
+LIMIT 15;
 ```
 
-### If user asks for weekend sends:
+### If user wants weekend sends:
 ```sql
 SELECT emailname_, send_dt, sends, ROUND(sales, 2) AS revenue
 FROM mk_stg.email_conversion_agg
 WHERE DAY_OF_WEEK(DATE(send_dt)) IN (1, 7)
 ORDER BY send_dt DESC
-LIMIT 20;
+LIMIT 15;
 ```
 
-### If user asks for a specific type, run:
+### If user wants a specific type:
 ```sql
 SELECT emailname_, send_dt, sends, ROUND(sales, 2) AS revenue
 FROM mk_stg.email_conversion_agg
@@ -52,13 +47,106 @@ ORDER BY send_dt DESC
 LIMIT 10;
 ```
 
-Present results and ask: **"Which campaign would you like to analyze?"**
-
-Once the user confirms a single campaign name, proceed with the full analysis below.
+Present the list and ask: **"Which campaign would you like to analyze?"**
 
 ---
 
-## General Context
+## Step 1: Choose Analysis Depth
+
+Once the user picks a campaign, present the two options:
+
+> "Great. I can run two levels of analysis for **{campaign_name}**:
+>
+> **Summary Analysis** *(~2-3 minutes)*
+> Runs entirely from the pre-computed table — no heavy queries.
+> Includes:
+> - Engagement metrics (Open Rate, Click Rate, CTOR, Unsub Rate)
+> - Click-attributed revenue, AOV, Conv Rate, Rev/Clicker
+> - Baseline comparison vs peer campaigns
+> - Top 10 departments by revenue
+>
+> **Full Analysis** *(30-60+ minutes)*
+> Adds live queries against the transaction tables.
+> Includes everything above plus:
+> - RFM segment breakdown (Core/Aspiring/Developing/Uncommitted/Reactivated)
+> - Geographic analysis (In-Store by market, BOPIS, Online by state)
+> - Channel split (In-Store / BOPIS / Online)
+> - Lifecycle classification (New/Existing/Reactivated clickers)
+>
+> Which would you like?"
+
+**Default is Summary Analysis unless the user explicitly asks for Full Analysis.**
+
+---
+
+## SUMMARY ANALYSIS (default — agg table only, no sendlog)
+
+All data comes from `mk_stg.email_conversion_agg`. No joins to sendlog, clicks, or transactions tables.
+
+### Query 1 — Overview + Baseline (single query)
+
+```sql
+WITH this_campaign AS (
+    SELECT *,
+        CAST(opens AS DOUBLE)/NULLIF(sends,0) AS open_rate,
+        CAST(clicks AS DOUBLE)/NULLIF(sends,0) AS click_rate,
+        CAST(clicks AS DOUBLE)/NULLIF(opens,0) AS ctor,
+        CAST(unsubs AS DOUBLE)/NULLIF(sends,0) AS unsub_rate,
+        CAST(purchases AS DOUBLE)/NULLIF(clicks,0) AS conv_rate,
+        sales/NULLIF(clicks,0) AS rev_per_clicker,
+        sales/NULLIF(purchases,0) AS aov
+    FROM mk_stg.email_conversion_agg
+    WHERE LOWER(emailname_) = LOWER('{input_campaign}')
+),
+baseline AS (
+    SELECT *,
+        CAST(opens AS DOUBLE)/NULLIF(sends,0) AS open_rate,
+        CAST(clicks AS DOUBLE)/NULLIF(sends,0) AS click_rate,
+        CAST(unsubs AS DOUBLE)/NULLIF(sends,0) AS unsub_rate,
+        CAST(purchases AS DOUBLE)/NULLIF(clicks,0) AS conv_rate,
+        sales/NULLIF(clicks,0) AS rev_per_clicker,
+        sales/NULLIF(purchases,0) AS aov
+    FROM mk_stg.email_conversion_agg
+    WHERE {TYPE_PEER_CONDITION} AND LOWER(emailname_) != LOWER('{input_campaign}')
+)
+SELECT 'this_campaign' AS cohort, open_rate, click_rate, ctor, unsub_rate, conv_rate, rev_per_clicker, aov, sends, clicks, purchases, sales FROM this_campaign
+UNION ALL SELECT 'baseline_median', APPROX_PERCENTILE(open_rate,0.5), APPROX_PERCENTILE(click_rate,0.5), APPROX_PERCENTILE(ctor,0.5), APPROX_PERCENTILE(unsub_rate,0.5), APPROX_PERCENTILE(conv_rate,0.5), APPROX_PERCENTILE(rev_per_clicker,0.5), APPROX_PERCENTILE(aov,0.5), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS DOUBLE) FROM baseline
+UNION ALL SELECT 'baseline_mean', AVG(open_rate), AVG(click_rate), AVG(ctor), AVG(unsub_rate), AVG(conv_rate), AVG(rev_per_clicker), AVG(aov), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS DOUBLE) FROM baseline;
+```
+
+### Query 2 — Top 10 Departments
+
+```sql
+SELECT emailname_, send_dt, top_10_departments
+FROM mk_stg.email_conversion_agg
+WHERE LOWER(emailname_) = LOWER('{input_campaign}');
+```
+
+Display `top_10_departments` as an ordered list (it is an `array(varchar)` — index 0 = top dept by revenue).
+
+### Summary Dashboard Output (3 sections)
+
+**Section 1 — Overview tiles** (from this_campaign row):
+- Sends · Opens · Clicks · Unsubs · Purchases (transactions) · Revenue
+- Open Rate · Click Rate · CTOR · Unsub Rate (with baseline bps deltas)
+- Conv Rate · Rev/Clicker · AOV (with baseline % deltas)
+
+**Section 2 — Baseline comparison table**:
+Metric | This Campaign | Baseline Median | Baseline Mean | vs Baseline
+
+**Section 3 — Top 10 Departments**:
+Ordered list from `top_10_departments` array. Label as "Top Departments by Revenue (click-attributed)".
+
+> **After rendering summary**, ask:
+> "Would you like to run the full analysis? This adds RFM segmentation, geographic breakdown, and channel split but takes 30-60+ minutes."
+
+---
+
+## FULL ANALYSIS (on explicit user request)
+
+Run after Summary is complete. Executes live queries. Refer to the Phase 2 breakdown queries below.
+
+
 * **Database Schema:** All tables are located in the `mk_stg` schema.
 * **Campaign Parameter:** Provided by user. Substitute where `{input_campaign}` appears — matched against the `emailname_` column.
 * **Attribution Window Parameter:** Integer days (default 7). Substitute where `{input_days}` appears.

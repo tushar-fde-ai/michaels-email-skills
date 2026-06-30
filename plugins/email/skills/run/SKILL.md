@@ -65,7 +65,7 @@ Once the user picks a campaign, present the two options:
 > - Baseline comparison vs peer campaigns
 > - Top 10 departments by revenue
 >
-> **Full Analysis** *(30-60+ minutes)*
+> **Full Analysis** *(~15-20 minutes)*
 > Adds live queries against the transaction tables.
 > Includes everything above plus:
 > - RFM segment breakdown (Core/Aspiring/Developing/Uncommitted/Reactivated)
@@ -137,8 +137,12 @@ Metric | This Campaign | Baseline Median | Baseline Mean | vs Baseline
 **Section 3 — Top 10 Departments**:
 Ordered list from `top_10_departments` array. Label as "Top Departments by Revenue (click-attributed)".
 
-> **After rendering summary**, ask:
-> "Would you like to run the full analysis? This adds RFM segmentation, geographic breakdown, and channel split but takes 30-60+ minutes."
+> **After rendering summary**, automatically invoke the **`email:dashboard`** skill to generate the HTML dashboard from the summary data. Do not ask — render the dashboard by default.
+
+---
+
+Once the dashboard is rendered, ask:
+> "Dashboard ready! Would you like to run the **full analysis**? This adds RFM segmentation, geographic breakdown (In-Store markets, BOPIS, Online by state), channel split, and lifecycle classification. Takes ~15-20 minutes."
 
 ---
 

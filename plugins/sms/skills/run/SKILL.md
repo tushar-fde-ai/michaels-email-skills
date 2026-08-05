@@ -86,7 +86,10 @@ WHERE status = 'SUBSCRIBED'
   AND CAST(updated_at AS DATE) <= DATE '{week_end_date}';
 ```
 
-### A3: Render fiscal week HTML dashboard
+### A3: Render fiscal week dashboard
+
+Invoke **`email:dashboard`** with `channel: sms`.
+
 
 KPI tiles: Total Sends · Total Clicks · Overall Click Rate · Subscriber Count
 
@@ -198,9 +201,11 @@ FROM (
 ) peers;
 ```
 
-### B5: Render initial dashboard (4 KPI tiles)
+### B5: Render initial dashboard
 
 Sends · Unique Clickers · Click Rate (vs baseline bps) · Revenue · AOV · Rev/Clicker
+
+Invoke **`email:dashboard`** with `channel: sms`. Renders Overview + Baseline tabs.
 
 Then offer:
 > "Want me to add RFM segment and department breakdowns? (~5-10 min)"
@@ -243,9 +248,9 @@ WHERE t.crafter_id IN ({crafter_id_list})
 GROUP BY 1 ORDER BY revenue DESC;
 ```
 
-### B7: Re-render full dashboard with tabs
+### B7: Re-render full dashboard
 
-**Overview · Departments · RFM Segments · Baseline**
+Invoke **`email:dashboard`** with `channel: sms`. Renders Overview · Departments · RFM Segments · Baseline tabs.
 
 ---
 

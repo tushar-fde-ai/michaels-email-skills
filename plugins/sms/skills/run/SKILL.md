@@ -1,5 +1,5 @@
 ---
-name: sms
+name: run
 description: Analyzes Michaels SMS performance by fiscal week or individual campaign
 ---
 

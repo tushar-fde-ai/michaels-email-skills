@@ -1,5 +1,5 @@
 ---
-name: email
+name: run
 description: Use this skill when asked to analyze email campaigns from Michaels treasure data instance
 ---
 
@@ -137,7 +137,7 @@ Metric | This Campaign | Baseline Median | Baseline Mean | vs Baseline
 **Section 3 — Top 10 Departments**:
 Ordered list from `top_10_departments` array. Label as "Top Departments by Revenue (click-attributed)".
 
-> **After rendering summary**, automatically invoke the **`demo:dashboard`** skill to generate the HTML dashboard from the summary data. Do not ask — render the dashboard by default.
+> **After rendering summary**, automatically invoke the **`email:dashboard`** skill to generate the HTML dashboard from the summary data. Do not ask — render the dashboard by default.
 
 ---
 
@@ -673,4 +673,4 @@ Then re-render the dashboard with all 5 tabs: **Overview · Departments · RFM S
 
 ## Dashboard Rendering
 
-Once all query data is collected, invoke the `demo:dashboard` skill to render the HTML output. That skill defines the complete 5-tab dashboard structure, CSS classes, formatting rules, and layout specifications.
+Once all query data is collected, invoke the `email:dashboard` skill to render the HTML output. That skill defines the complete 5-tab dashboard structure, CSS classes, formatting rules, and layout specifications.

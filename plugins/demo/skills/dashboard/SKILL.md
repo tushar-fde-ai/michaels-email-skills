@@ -3,7 +3,6 @@ name: dashboard
 description: Renders the HTML dashboard for Michaels email campaign performance reports
 ---
 
-
 # Email Campaign Dashboard — Layout Spec
 
 Single self-contained HTML file. 5 tabs. All CSS inline. No external dependencies.
@@ -17,6 +16,7 @@ Single self-contained HTML file. 5 tabs. All CSS inline. No external dependencie
 ---
 
 ## Banner
+
 Campaign name (monospace badge) · Send date · Attribution window · Theme · Type
 
 ## Tabs: Overview · Departments · Baseline · Geography (default) · RFM Segments (optional, on request)
@@ -30,18 +30,21 @@ Campaign name (monospace badge) · Send date · Attribution window · Theme · T
 **Volume** (grid-3): Sends · Opens · Clicks · Unsubscribes · Transactions (+ customers count) · Revenue (green)
 
 **Engagement Rates** (grid-4 tiles with baseline):
+
 - Open Rate — baseline median/mean, bps delta, green if above
 - Click Rate — same
 - CTOR — no baseline, value only
 - Unsub Rate — baseline, green if BELOW (lower = better)
 
 **Conversion** (grid-4):
+
 - Click → Purchase Rate (customers/clickers) — no baseline
 - Conv Rate (transactions/clickers) — baseline bps delta
 - Audience Conversion Rate (customers/sends) — no baseline here (shown in Audience Metrics section)
 - Revenue per Clicker — baseline % delta + AOV
 
 **Audience Metrics** (grid-2) — both tiles show baseline comparisons:
+
 - Audience Conversion Rate = customers / sends — baseline median/mean, bps delta
 - Revenue per Audience = revenue / sends — baseline median/mean, % delta
 
@@ -64,9 +67,11 @@ Campaign name (monospace badge) · Send date · Attribution window · Theme · T
 **Bridge badge:** RFM revenue vs clicker total (should be within ~1%)
 
 **Segment cards** (grid-5) with colored top borders:
+
 - Core (green) · Aspiring (blue) · Developing (amber) · Uncommitted (red) · **Reactivated (purple)**
 
 Each card uses self-contained readout lines (no label/value split):
+
 - `$X revenue` · `XX.X%`
 - `X,XXX transactions` · `XX.X%`
 - `X,XXX clickers` · `XX.X%`
@@ -106,11 +111,12 @@ Metrics: Open Rate · Click Rate · Unsub Rate · Conv Rate · Rev/Clicker · AO
 ## Tab 5: Geography
 
 **Channel split** (grid-4):
+
 - Total card: text list showing `● In-Store $X · XX%` / `● BOPIS $X · XX%` / `● Online $X · XX%` — clearer than a stacked bar when BOPIS is small
 - In-Store card (slate top border): revenue, txns, customers, units
 - BOPIS card (purple top border): same
 - Online card (blue top border): same
-- chan_key: '1'=In-Store, '4'=BOPIS, others=Online
+- chan\_key: '1'=In-Store, '4'=BOPIS, others=Online
 
 **Region pie chart:** East vs West in-store revenue as SVG donut. East (slate) / West (warm tan). Show $ and % labels.
 
@@ -120,9 +126,10 @@ Metrics: Open Rate · Click Rate · Unsub Rate · Conv Rate · Rev/Clicker · AO
 
 **BOPIS by Market** (top 10+): Same format as in-store. Region split summary line above (East $X XX% · West $X XX% · Canada $X XX% if present).
 
-**Methodology footnote:** chan_key mapping, store_info join, crafter_id bridge for online, region note, stores 9283/9284 excluded.
+**Methodology footnote:** chan\_key mapping, store\_info join, crafter\_id bridge for online, region note, stores 9283/9284 excluded.
 
 ---
 
 ## Footer
+
 Attribution method · Window dates · RFM join method · Reactivation fiscal IDs · Tables used

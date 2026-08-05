@@ -60,18 +60,19 @@ SELECT
         ELSE 'Journey/Trigger'
     END AS campaign_type,
     COUNT(DISTINCT CASE WHEN type = 'SENT' THEN message_id END) AS sends,
-    COUNT(DISTINCT CASE WHEN type = 'CLICKED' THEN message_id END) AS clicks,
+    COUNT(DISTINCT CASE WHEN type = 'CLICKED' THEN user_id END) AS unique_clickers,
     ROUND(
-        100.0 * COUNT(DISTINCT CASE WHEN type = 'CLICKED' THEN message_id END)
+        100.0 * COUNT(DISTINCT CASE WHEN type = 'CLICKED' THEN user_id END)
         / NULLIF(COUNT(DISTINCT CASE WHEN type = 'SENT' THEN message_id END), 0),
     2) AS click_rate
 FROM mk_src.attentive_general_histunion
 WHERE CAST(event_timestamp AS DATE) BETWEEN DATE '{week_start_date}' AND DATE '{week_end_date}'
 GROUP BY 1
 UNION ALL
-SELECT 'Total', COUNT(DISTINCT CASE WHEN type='SENT' THEN message_id END),
-    COUNT(DISTINCT CASE WHEN type='CLICKED' THEN message_id END),
-    ROUND(100.0 * COUNT(DISTINCT CASE WHEN type='CLICKED' THEN message_id END)
+SELECT 'Total',
+    COUNT(DISTINCT CASE WHEN type='SENT' THEN message_id END),
+    COUNT(DISTINCT CASE WHEN type='CLICKED' THEN user_id END),
+    ROUND(100.0 * COUNT(DISTINCT CASE WHEN type='CLICKED' THEN user_id END)
         / NULLIF(COUNT(DISTINCT CASE WHEN type='SENT' THEN message_id END),0), 2)
 FROM mk_src.attentive_general_histunion
 WHERE CAST(event_timestamp AS DATE) BETWEEN DATE '{week_start_date}' AND DATE '{week_end_date}';
@@ -90,10 +91,9 @@ WHERE status = 'SUBSCRIBED'
 
 Invoke **`email:dashboard`** with `channel: sms`.
 
+KPI tiles: Total Sends · Total Clickers · Overall Click Rate · Subscriber Count
 
-KPI tiles: Total Sends · Total Clicks · Overall Click Rate · Subscriber Count
-
-Segment table: Campaign Type | Sends | Clicks | Click Rate
+Segment table: Campaign Type | Sends | Clickers | Click Rate
 
 Bar chart: Mass vs Journey/Trigger sends side-by-side.
 
@@ -103,8 +103,9 @@ Bar chart: Mass vs Journey/Trigger sends side-by-side.
 
 ### B1: Confirm campaign name
 
-### B2: Resolve send date range
+### B2: Resolve send date range + fiscal IDs (run in parallel)
 
+**Send date range:**
 ```sql
 SELECT
     MIN(CAST(event_timestamp AS DATE)) AS send_start,
@@ -114,7 +115,17 @@ WHERE LOWER(campaign_name) = LOWER('{campaign_name}')
   AND type = 'SENT';
 ```
 
-Attribution window = send_start + 7 days.
+**Fiscal IDs for attribution window (7 days):**
+```sql
+SELECT
+    MIN(CASE WHEN day_dt = CAST('{send_start}' AS VARCHAR) THEN CAST(day_idnt AS BIGINT) END) AS send_min_id,
+    MIN(CASE WHEN day_dt = CAST(DATE_ADD('day', 7, DATE '{send_start}') AS VARCHAR) THEN CAST(day_idnt AS BIGINT) END) AS attribution_max_id
+FROM cdp_unification_mk.bq_date_dim
+WHERE day_dt IN (
+    CAST('{send_start}' AS VARCHAR),
+    CAST(DATE_ADD('day', 7, DATE '{send_start}') AS VARCHAR)
+);
+```
 
 ### B3: Phase 1 — run these 3 in parallel
 
@@ -166,6 +177,10 @@ FROM (
     WHERE LOWER(campaign_name) != LOWER('{campaign_name}')
       AND CAST(event_timestamp AS DATE) >= CURRENT_DATE - INTERVAL '90' DAY
       AND (UPPER(campaign_name) LIKE 'MASS%' OR UPPER(campaign_name) LIKE 'PROMO%')
+      AND UPPER(campaign_name) NOT LIKE '%WELCOME%'
+      AND UPPER(campaign_name) NOT LIKE '%MAKERPLACE%'
+      AND UPPER(campaign_name) NOT LIKE '%QUE%'
+      AND UPPER(campaign_name) NOT LIKE '%CAN%'
     GROUP BY campaign_name
 ) peers, this_campaign
 WHERE peers.sends BETWEEN this_campaign.sends * 0.7 AND this_campaign.sends * 1.3;
@@ -180,51 +195,112 @@ SELECT
     COUNT(DISTINCT t.transaction_id_number) AS transactions,
     COUNT(DISTINCT t.crafter_id) AS customers,
     ROUND(SUM(t.total_gross_sales), 2) AS revenue,
-    ROUND(SUM(t.total_gross_sales) / NULLIF(COUNT(DISTINCT t.transaction_id_number), 0), 2) AS aov
+    ROUND(SUM(t.total_gross_sales) / NULLIF(COUNT(DISTINCT t.transaction_id_number), 0), 2) AS aov,
+    ROUND(SUM(t.total_gross_sales) / NULLIF(COUNT(DISTINCT t.crafter_id), 0), 2) AS rev_per_clicker
 FROM cdp_unification_mk.enrich_transactions_behaviour t
 WHERE t.crafter_id IN ({crafter_id_list})
   AND CAST(t.DAY_IDNT AS BIGINT) BETWEEN {send_min_id} AND {attribution_max_id}
   AND t.store_number NOT IN ('9283', '9284');
 ```
 
-**Q3b — Baseline revenue from peer campaigns:**
+**Q3b — Baseline revenue from peer campaigns (scoped per campaign window — avoids memory blowup):**
 
 ```sql
--- Same peer group as Q3a; compute median/mean of revenue per campaign
+WITH peer_campaigns AS (
+    SELECT
+        campaign_name,
+        MIN(CAST(event_timestamp AS DATE)) AS send_start,
+        COUNT(DISTINCT CASE WHEN type='SENT' THEN message_id END) AS sends
+    FROM mk_src.attentive_general_histunion
+    WHERE LOWER(campaign_name) != LOWER('{campaign_name}')
+      AND CAST(event_timestamp AS DATE) >= CURRENT_DATE - INTERVAL '90' DAY
+      AND (UPPER(campaign_name) LIKE 'MASS%' OR UPPER(campaign_name) LIKE 'PROMO%')
+      AND UPPER(campaign_name) NOT LIKE '%WELCOME%'
+      AND UPPER(campaign_name) NOT LIKE '%MAKERPLACE%'
+      AND UPPER(campaign_name) NOT LIKE '%QUE%'
+      AND UPPER(campaign_name) NOT LIKE '%CAN%'
+    GROUP BY campaign_name
+    HAVING COUNT(DISTINCT CASE WHEN type='SENT' THEN message_id END)
+        BETWEEN {this_campaign_sends} * 0.7 AND {this_campaign_sends} * 1.3
+),
+peer_clickers AS (
+    SELECT DISTINCT
+        p.campaign_name,
+        p.send_start,
+        e.crafter_id
+    FROM mk_src.attentive_general_histunion a
+    INNER JOIN peer_campaigns p ON LOWER(a.campaign_name) = LOWER(p.campaign_name)
+    INNER JOIN cdp_unification_mk.enrich_attentive_optstatus e ON a.user_id = e.phone
+    WHERE a.type = 'CLICKED'
+      AND e.crafter_id IS NOT NULL
+),
+peer_fiscal_ids AS (
+    SELECT
+        pc.campaign_name,
+        MIN(CASE WHEN d.day_dt = CAST(pc.send_start AS VARCHAR)
+            THEN CAST(d.day_idnt AS BIGINT) END) AS window_min_id,
+        MIN(CASE WHEN d.day_dt = CAST(DATE_ADD('day', 7, pc.send_start) AS VARCHAR)
+            THEN CAST(d.day_idnt AS BIGINT) END) AS window_max_id
+    FROM peer_clickers pc
+    CROSS JOIN cdp_unification_mk.bq_date_dim d
+    WHERE d.day_dt IN (
+        CAST(pc.send_start AS VARCHAR),
+        CAST(DATE_ADD('day', 7, pc.send_start) AS VARCHAR)
+    )
+    GROUP BY pc.campaign_name
+),
+peer_revenue AS (
+    SELECT
+        pc.campaign_name,
+        ROUND(SUM(t.total_gross_sales), 2) AS revenue,
+        COUNT(DISTINCT t.transaction_id_number) AS transactions,
+        COUNT(DISTINCT t.crafter_id) AS customers
+    FROM peer_clickers pc
+    INNER JOIN peer_fiscal_ids fi ON pc.campaign_name = fi.campaign_name
+    INNER JOIN cdp_unification_mk.enrich_transactions_behaviour t
+        ON t.crafter_id = pc.crafter_id
+    WHERE CAST(t.DAY_IDNT AS BIGINT) BETWEEN fi.window_min_id AND fi.window_max_id
+      AND t.store_number NOT IN ('9283', '9284')
+    GROUP BY pc.campaign_name
+)
 SELECT
     APPROX_PERCENTILE(revenue, 0.5) AS baseline_median_revenue,
-    AVG(revenue) AS baseline_mean_revenue
-FROM (
-    SELECT campaign_name, SUM(total_gross_sales) AS revenue
-    FROM ... -- peer campaign transactions
-    GROUP BY campaign_name
-) peers;
+    AVG(revenue) AS baseline_mean_revenue,
+    APPROX_PERCENTILE(revenue / NULLIF(transactions, 0), 0.5) AS baseline_median_aov,
+    APPROX_PERCENTILE(revenue / NULLIF(customers, 0), 0.5) AS baseline_median_rev_per_clicker,
+    COUNT(*) AS peer_count
+FROM peer_revenue;
 ```
 
-### B5: Render initial dashboard
+> **Why this works:** Each peer campaign's clickers are resolved first (small set), then transactions are scoped to that campaign's own 7-day window. Avoids joining 183K clickers × 90 days of transactions in one scan.
 
-Sends · Unique Clickers · Click Rate (vs baseline bps) · Revenue · AOV · Rev/Clicker
+### B5: Render initial dashboard
 
 Invoke **`email:dashboard`** with `channel: sms`. Renders Overview + Baseline tabs.
 
 Then offer:
-> "Want me to add RFM segment and department breakdowns? (~5-10 min)"
+> "Want me to add department and RFM segment breakdowns? (~5-10 min)"
 
 ### B6 (optional): Department + RFM breakdown
 
-**Q4 — Department revenue (GROUPING SETS):**
+Run Q4 and Q5 in parallel.
+
+**Q4 — Department revenue (join product_info_ai for dept_name):**
 
 ```sql
 SELECT
-    t.dept_name,
-    GROUPING(t.dept_name) AS is_total,
+    p.dept_desc AS dept_name,
+    GROUPING(p.dept_desc) AS is_total,
     COUNT(DISTINCT t.transaction_id_number) AS transactions,
+    COUNT(DISTINCT t.crafter_id) AS customers,
+    SUM(t.item_quantity) AS quantity,
     ROUND(SUM(t.total_gross_sales), 2) AS revenue
 FROM cdp_unification_mk.enrich_transactions_behaviour t
+INNER JOIN cdp_unification_mk.product_info_ai p ON t.sku_key = p.sku_key
 WHERE t.crafter_id IN ({crafter_id_list})
   AND CAST(t.DAY_IDNT AS BIGINT) BETWEEN {send_min_id} AND {attribution_max_id}
   AND t.store_number NOT IN ('9283', '9284')
-GROUP BY GROUPING SETS ((t.dept_name), ())
+GROUP BY GROUPING SETS ((p.dept_desc), ())
 ORDER BY is_total DESC, revenue DESC;
 ```
 
@@ -275,5 +351,6 @@ Invoke **`email:dashboard`** with `channel: sms`. Renders Overview · Department
 | `mk_src.attentive_optstatus` | Subscriber opt-in status |
 | `cdp_unification_mk.enrich_attentive_optstatus` | Phone → crafter_id bridge |
 | `cdp_unification_mk.enrich_transactions_behaviour` | Transaction records with crafter_id |
+| `cdp_unification_mk.product_info_ai` | Product → dept_desc. Join: t.sku_key = p.sku_key |
 | `cdp_unification_mk.bq_date_dim` | Fiscal calendar dimension |
 | `cdp_audience_961573.customers` | RFM master (rfm_segment_week) |

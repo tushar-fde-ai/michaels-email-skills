@@ -1,0 +1,8 @@
+{
+  "name": "discount",
+  "description": "Michaels coupon and discount YoY analysis — promotional discount by department, coupon breakdown, clearance, reward dollars, customer segmentation",
+  "version": "1.0.0",
+  "author": {
+    "name": "tushar-fde-ai"
+  }
+}

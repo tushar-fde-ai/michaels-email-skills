@@ -3,7 +3,7 @@
   "owner": {
     "name": "tushar-fde-ai"
   },
-  "description": "Michaels demo skills — email analysis, dashboard, retail analytics, SMS",
+  "description": "Michaels demo skills — email analysis, dashboard, retail analytics, SMS, discount",
   "plugins": [
     {
       "name": "email",
@@ -21,6 +21,12 @@
       "name": "sms",
       "source": "./plugins/sms",
       "description": "Michaels SMS campaign performance analysis",
+      "version": "1.0.0"
+    },
+    {
+      "name": "discount",
+      "source": "./plugins/discount",
+      "description": "Michaels coupon and discount YoY analysis — promotional discount, coupon breakdown, clearance, reward dollars, customer segmentation",
       "version": "1.0.0"
     }
   ]

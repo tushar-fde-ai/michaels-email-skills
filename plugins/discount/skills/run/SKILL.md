@@ -230,7 +230,6 @@ SELECT emailname_,
        ROUND(SUM(sales)/NULLIF(SUM(purchases),0), 2) AS aov
 FROM mk_stg.email_conversion_agg
 WHERE send_dt BETWEEN '<START>' AND '<END>'
-  AND (LOWER(emailname_) LIKE '%eow%' OR LOWER(emailname_) LIKE '%circ%')
 GROUP BY 1
 ORDER BY SUM(sales) DESC
 ```

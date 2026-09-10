@@ -207,100 +207,41 @@ GROUP BY 1
 
 ---
 
-## Step 7 — Email campaigns (EOW/Circular audience engagement)
+## Step 7 — Email campaigns
 
-Source: `mk_stg.sfmc_sendlog`, `mk_stg.sfmc_clicks`, `cdp_unification_mk.bq_date_dim`.
+Source: `mk_stg.email_conversion_agg` (pre-computed, 7-day click attribution).
 
-Measures email engagement for the audience that received an EOW or Circular email in the target week. Scopes all email activity to that recipient pool — not just the EOW/Circular sends themselves.
+> **Important**: This table only covers dates up to approximately 3–4 weeks before the current date. For an August analysis period, use the most recent available 3-week window (e.g. Jun 13–Jul 4). Check the max available `send_dt` first:
+> ```sql
+> SELECT MAX(send_dt) FROM mk_stg.email_conversion_agg
+> ```
 
-Run for TY and LY separately, substituting `{wk_idnt}` each time.
+The sales column is named **`sales`** (not `revenue`). Aggregate by `emailname_`:
 
 ```sql
-WITH eow_circ_recipients AS (
-    SELECT DISTINCT a.email_id
-    FROM mk_stg.sfmc_sendlog a
-    JOIN cdp_unification_mk.bq_date_dim c
-      ON substring(a.send_dt, 1, 10) = c.day_dt
-    WHERE c.wk_idnt = '{wk_idnt}'
-      AND (a.emailname_ LIKE '%eow%' OR a.emailname_ LIKE '%circ%')
-      AND a.emailname_ NOT LIKE '%_can%'
-      AND a.emailname_ NOT LIKE '%can_%'
-      AND a.emailname_ NOT LIKE '%_que%'
-      AND a.emailname_ NOT LIKE '%que_%'
-      AND a.send_dt >= CAST(DATE_ADD('day', -14, DATE(
-            (SELECT MIN(day_dt) FROM cdp_unification_mk.bq_date_dim WHERE wk_idnt = '{wk_idnt}')
-          )) AS VARCHAR)
-),
-email_base AS (
-    SELECT
-        c.wk_idnt,
-        a.email_id,
-        COUNT(DISTINCT a.salesforce_id) AS sends,
-        COUNT(DISTINCT b.salesforce_id) AS clicks,
-        MAX(CASE WHEN b.salesforce_id IS NOT NULL THEN 1 ELSE 0 END) AS clicker_flag
-    FROM mk_stg.sfmc_sendlog a
-    JOIN cdp_unification_mk.bq_date_dim c
-      ON substring(a.send_dt, 1, 10) = c.day_dt
-    LEFT JOIN (
-        SELECT DISTINCT b.salesforce_id
-        FROM mk_stg.sfmc_clicks b
-        JOIN cdp_unification_mk.bq_date_dim d
-          ON substring(b.eventdate, 1, 10) = d.day_dt
-        WHERE d.wk_idnt = '{wk_idnt}'
-          AND b.eventdate >= CAST(DATE_ADD('day', -14, DATE(
-                (SELECT MIN(day_dt) FROM cdp_unification_mk.bq_date_dim WHERE wk_idnt = '{wk_idnt}')
-              )) AS VARCHAR)
-    ) b ON a.salesforce_id = b.salesforce_id
-    JOIN eow_circ_recipients eow ON a.email_id = eow.email_id
-    WHERE c.wk_idnt = '{wk_idnt}'
-      AND a.send_dt >= CAST(DATE_ADD('day', -14, DATE(
-            (SELECT MIN(day_dt) FROM cdp_unification_mk.bq_date_dim WHERE wk_idnt = '{wk_idnt}')
-          )) AS VARCHAR)
-      AND a.emailname_ NOT LIKE '%account confirmation%'
-      AND a.emailname_ NOT LIKE '%declined%'
-      AND a.emailname_ NOT LIKE '%shipping%'
-      AND a.emailname_ NOT LIKE '%shipment%'
-      AND a.emailname_ NOT LIKE '%return%'
-      AND a.emailname_ NOT LIKE '%confirmation%'
-      AND a.emailname_ NOT LIKE '%reship%'
-      AND a.emailname_ NOT LIKE '%bopis%'
-      AND a.emailname_ NOT LIKE '%ready_for_pickup%'
-      AND a.emailname_ NOT LIKE '%pickup%'
-      AND a.emailname_ NOT LIKE '%forgotpassword%'
-      AND a.emailname_ NOT LIKE '%appt%'
-      AND a.emailname_ NOT LIKE '%cancellation%'
-      AND a.emailname_ NOT LIKE '%shipped%'
-      AND a.emailname_ NOT LIKE '%order%'
-      AND a.emailname_ NOT LIKE '%marketplace%'
-      AND a.emailname_ NOT LIKE '%confirm%'
-      AND a.emailname_ NOT LIKE '%ship%'
-      AND a.emailname_ NOT LIKE '%makerplace%'
-      AND a.emailname_ NOT LIKE '%aaron%'
-      AND a.emailname_ NOT LIKE '%validity_seed%'
-      AND a.emailname_ NOT LIKE '%can_%'
-      AND a.emailname_ NOT LIKE '%_can%'
-      AND a.emailname_ NOT LIKE '%que_%'
-      AND a.emailname_ NOT LIKE '%_que%'
-      AND a.emailname_ NOT LIKE '%subscr_coi%'
-      AND a.emailname_ NOT LIKE '%mailernotification%'
-      AND a.emailname_ NOT LIKE '%receipt%'
-    GROUP BY 1, 2
-)
-SELECT
-    SUM(sends)                    AS sends,
-    SUM(clicks)                   AS clicks,
-    SUM(clicker_flag)             AS clickers,
-    COUNT(DISTINCT email_id)      AS unique_receivers,
-    ROUND(100.0 * SUM(clicks) / NULLIF(SUM(sends), 0), 2) AS click_rate_pct,
-    ROUND(100.0 * SUM(clicker_flag) / NULLIF(COUNT(DISTINCT email_id), 0), 2) AS clicker_rate_pct
-FROM email_base;
+SELECT emailname_,
+       MIN(send_dt) AS send_dt,
+       SUM(sends) AS sends, SUM(opens) AS opens,
+       SUM(clicks) AS clicks, SUM(unsubs) AS unsubs,
+       SUM(purchases) AS purchases,
+       ROUND(SUM(sales), 2) AS revenue,
+       ROUND(SUM(opens)*100.0/NULLIF(SUM(sends),0), 2) AS open_pct,
+       ROUND(SUM(clicks)*100.0/NULLIF(SUM(sends),0), 4) AS click_pct,
+       ROUND(SUM(sales)/NULLIF(SUM(purchases),0), 2) AS aov
+FROM mk_stg.email_conversion_agg
+WHERE send_dt BETWEEN '<START>' AND '<END>'
+  AND (LOWER(emailname_) LIKE '%eow%' OR LOWER(emailname_) LIKE '%circ%')
+GROUP BY 1
+ORDER BY SUM(sales) DESC
 ```
 
-> **TD_INTERVAL replaced**: `TD_INTERVAL(a.time, '-14d')` is Hive-only. Replaced with a standard Trino date predicate using `DATE_ADD` off the week's `MIN(day_dt)`. This applies to both the sendlog and clicks filters.
+**Type classification** from `emailname_` pattern:
+- contains `customframe` → Custom Frame (high open rates due to inbox preview renders — note this caveat)
+- contains `_dce_` → DCE (daily/triggered)
+- contains `_story_` → Story
+- default → Promo / Weekend
 
-> **What this measures**: engagement across all emails received by the EOW/Circular audience — not just the EOW/Circular campaigns themselves. Use `unique_receivers` as the denominator for reach metrics.
-
-Run for TY week and LY week. Present TY vs LY side-by-side: sends, clicks, clickers, unique receivers, click rate, clicker rate.
+Note: `emailname_` values are truncated in CLI display at ~52 chars. Use `SUBSTR(emailname_, 50)` to verify the tail of long names.
 
 ---
 
